@@ -106,7 +106,7 @@ h1{color:#E8C96A;font-size:1.25rem;font-weight:700;text-align:center;margin:12px
   <button class="btn-upload" onclick="document.getElementById('file-input').click()">
     <span>📸</span><span>ถ่ายรูป QR หรือเลือกจาก Gallery</span>
   </button>
-  <input type="file" id="file-input" accept="image/*" capture="environment" onchange="handleFile(this)">
+  <input type="file" id="file-input" accept="image/*" onchange="handleFile(this)">
 
   <p class="hint" id="hint-text">
     ส่อง QR Code ที่มุมขวาบนของรายงานผล<br>
@@ -10230,14 +10230,13 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 // ══════════════════════════════════════════
 const PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEvanwKrvZNxG6FW1uk6t/Y7K4V74wMTUbtb/qVsp6MoKK6G9c+BWcSDxkJ+3/eE4MlQXI2pHI0inQ6zwhSAf6aw==";
 // ข้อมูลผู้สอบทั้งหมด — ฝังโดย GAS ตอน deploy
-const STUDENTS = STUDENTS_DATA;
 // ══════════════════════════════════════════
 
 
 // ════════════════════════════════════════
 // ข้อมูลผู้สอบ — สร้างโดย GUI อัตโนมัติ
 // ════════════════════════════════════════
-const STUDENTS_DATA = {
+const STUDENTS = {
   "6911001": {
     "ID":"6911001",
     "N":"นางสาวปราญชล เหล่าอารักษ์พิบูล",
