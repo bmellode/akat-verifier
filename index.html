@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>AKAT Score Verifier</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#0A1929;min-height:100vh;
+     display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{color:#E8C96A;font-size:1.25rem;font-weight:700;text-align:center;margin:12px 0 2px}
+.sub{color:#8A9BB0;font-size:.8rem;text-align:center;margin-bottom:16px}
+
+.scan-card{background:#112240;border-radius:16px;padding:16px;width:100%;max-width:440px;
+           box-shadow:0 4px 24px rgba(0,0,0,.4)}
+
+/* วิดีโอ */
+#video-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:12px;
+            overflow:hidden;background:#000;display:flex;align-items:center;
+            justify-content:center}
+#video{width:100%;height:100%;object-fit:cover;display:block}
+.corner{position:absolute;width:36px;height:36px;border-color:#E8C96A;border-style:solid}
+.tl{top:10px;left:10px;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+.tr{top:10px;right:10px;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+.bl{bottom:10px;left:10px;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+.br{bottom:10px;right:10px;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
+.scan-line{position:absolute;left:10px;right:10px;height:2px;background:#E8C96A;
+           opacity:.8;animation:scanmove 2s linear infinite;top:10px}
+@keyframes scanmove{0%{top:10px}100%{top:calc(100% - 12px)}}
+#cam-placeholder{color:#8A9BB0;font-size:.85rem;text-align:center;padding:20px;
+                 display:flex;flex-direction:column;align-items:center;gap:8px}
+#cam-placeholder span{font-size:2.5rem}
+
+/* ปุ่มหลัก */
+.btn-primary{width:100%;margin-top:12px;padding:14px;background:#C9A84C;color:#0D2137;
+             border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
+             display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary:active{background:#E8C96A}
+.btn-stop{background:#163352;color:#E8C96A;border:1.5px solid #C9A84C}
+
+/* ปุ่มอัปโหลด */
+.btn-upload{width:100%;margin-top:8px;padding:12px;background:#163352;color:#8A9BB0;
+            border:1.5px solid #2a4a6a;border-radius:10px;font-size:.9rem;font-weight:600;
+            cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-upload:active{background:#1A3353}
+#file-input{display:none}
+
+.hint{color:#8A9BB0;font-size:.78rem;text-align:center;margin-top:8px;line-height:1.5}
+
+/* ผลลัพธ์ */
+#result{width:100%;max-width:440px;margin-top:14px;display:none}
+.r-box{border-radius:12px;padding:16px 18px;margin-bottom:10px}
+.valid  {background:#0d2e1c;border:1.5px solid #2ECC71}
+.invalid{background:#2e0d0d;border:1.5px solid #E74C3C}
+.warning{background:#2e250d;border:1.5px solid #F39C12}
+.r-icon{font-size:2.5rem;margin-bottom:6px;text-align:center}
+.r-title{font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:4px}
+.valid   .r-title{color:#2ECC71}
+.invalid .r-title{color:#E74C3C}
+.warning .r-title{color:#F39C12}
+.r-desc{font-size:.83rem;color:#aaa;text-align:center}
+
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.info-item{background:#0A1929;border-radius:8px;padding:10px 12px}
+.info-item.full{grid-column:1/-1}
+.i-label{font-size:.72rem;color:#8A9BB0;margin-bottom:3px;font-weight:600;text-transform:uppercase}
+.i-value{font-size:.95rem;font-weight:700;color:#E8C96A}
+.score-row{display:flex;gap:8px;margin-top:8px}
+.score-box{flex:1;text-align:center;background:#0D2137;border-radius:8px;padding:12px 8px;
+           border:1px solid #163352}
+.s-label{font-size:.7rem;color:#8A9BB0;margin-bottom:4px}
+.s-val{font-size:1.6rem;font-weight:800;color:#E8C96A}
+
+.btn-rescan{width:100%;padding:13px;background:#163352;color:#E8C96A;
+            border:1.5px solid #C9A84C;border-radius:10px;font-size:.95rem;
+            font-weight:700;cursor:pointer;margin-top:8px}
+.btn-rescan:active{background:#1A3353}
+
+.loading{text-align:center;color:#8A9BB0;padding:20px;font-size:.9rem}
+.footer{color:#3a4f65;font-size:.72rem;text-align:center;margin-top:20px;padding-bottom:20px}
+</style>
+</head>
+<body>
+
+<h1>AKAT Score Verifier</h1>
+<p class="sub">ระบบตรวจสอบรายงานผลสอบ AKAT</p>
+
+<div class="scan-card">
+  <div id="video-wrap">
+    <div id="cam-placeholder">
+      <span>📄</span>
+      <div>กดปุ่มด้านล่างเพื่อสแกน QR</div>
+    </div>
+    <video id="video" autoplay playsinline muted style="display:none"></video>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div class="scan-line" id="scan-line" style="display:none"></div>
+  </div>
+
+  <!-- ปุ่มเปิดกล้อง -->
+  <button class="btn-primary" id="btn-scan" onclick="toggleCamera()">
+    <span>📷</span><span>เปิดกล้องสแกน QR</span>
+  </button>
+
+  <!-- ปุ่มถ่ายรูป / เลือกรูป -->
+  <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+    <span>📸</span><span>ถ่ายรูป QR หรือเลือกจาก Gallery</span>
+  </button>
+  <input type="file" id="file-input" accept="image/*" capture="environment" onchange="handleFile(this)">
+
+  <p class="hint" id="hint-text">
+    ส่อง QR Code ที่มุมขวาบนของรายงานผล<br>
+    หรือถ่ายรูป QR แล้วเลือกจาก Gallery
+  </p>
+</div>
+
+<div id="result"></div>
+
+<div class="footer">
+  AKAT Score Report Verification System<br>
+  Srinakharinwirot University
+</div>
+
+<?!= include('jsqr') ?>
+<script>
+// ══════════════════════════════════════════
+// PUBLIC KEY — วางค่าจาก public_key.pem ที่นี่
+// (GUI จะฝังให้อัตโนมัติตอนกด "สร้าง verifier_ready")
+// ══════════════════════════════════════════
+const PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEvanwKrvZNxG6FW1uk6t/Y7K4V74wMTUbtb/qVsp6MoKK6G9c+BWcSDxkJ+3/eE4MlQXI2pHI0inQ6zwhSAf6aw==";
+// ข้อมูลผู้สอบทั้งหมด — ฝังโดย GAS ตอน deploy
+const STUDENTS = <?= studentsJson ?>;
+// ══════════════════════════════════════════
+
+let stream = null, scanning = false, animFrame = null;
+const video = document.getElementById("video");
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
+
+// ── กล้อง ──────────────────────────────
+async function toggleCamera() {
+  scanning ? stopCamera() : await startCamera();
+}
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:"environment", width:{ideal:1280}, height:{ideal:720} }
+    });
+    video.srcObject = stream;
+    video.style.display = "block";
+    document.getElementById("cam-placeholder").style.display = "none";
+    document.getElementById("scan-line").style.display = "block";
+    const btn = document.getElementById("btn-scan");
+    btn.innerHTML = "<span>⏹</span><span>หยุดกล้อง</span>";
+    btn.classList.add("btn-stop");
+    document.getElementById("hint-text").textContent = "กำลังสแกน... ส่อง QR ให้อยู่ในกรอบ";
+    scanning = true;
+    requestAnimationFrame(scanFrame);
+  } catch(e) {
+    // กล้องไม่ได้ → แนะนำใช้ upload แทน
+    document.getElementById("hint-text").innerHTML =
+      "ไม่สามารถเปิดกล้องได้<br>กรุณาใช้ปุ่ม <b>เลือกรูปภาพ</b> แทน";
+  }
+}
+
+function stopCamera() {
+  scanning = false;
+  if(animFrame) cancelAnimationFrame(animFrame);
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  video.style.display = "none";
+  document.getElementById("cam-placeholder").style.display = "flex";
+  document.getElementById("scan-line").style.display = "none";
+  const btn = document.getElementById("btn-scan");
+  btn.innerHTML = "<span>📷</span><span>สแกนใหม่อีกครั้ง</span>";
+  btn.classList.remove("btn-stop");
+  document.getElementById("hint-text").innerHTML =
+    "ส่อง QR Code ที่มุมขวาบนของรายงานผล<br>หรือถ่ายรูป QR แล้วเลือกจาก Gallery";
+}
+
+function scanFrame() {
+  if(!scanning) return;
+  if(video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0);
+    const code = jsQR(ctx.getImageData(0,0,canvas.width,canvas.height).data,
+                      canvas.width, canvas.height, {inversionAttempts:"dontInvert"});
+    if(code){ stopCamera(); processQR(code.data); return; }
+  }
+  animFrame = requestAnimationFrame(scanFrame);
+}
+
+// ── อัปโหลดรูป (resize ก่อนอ่าน) ────────
+function handleFile(input) {
+  if(!input.files || !input.files[0]) return;
+  const res = document.getElementById("result");
+  res.style.display = "block";
+  res.innerHTML = '<div class="loading">กำลังประมวลผล...</div>';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      // resize ให้ด้านยาวไม่เกิน 800px — เร็วขึ้น 10-50x
+      const MAX = 800;
+      let w = img.width, h = img.height;
+      if(w > MAX || h > MAX) {
+        if(w > h) { h = Math.round(h * MAX/w); w = MAX; }
+        else      { w = Math.round(w * MAX/h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // อ่าน QR จากรูปที่ resize แล้ว
+      const code = jsQR(ctx.getImageData(0,0,w,h).data, w, h,
+                        {inversionAttempts:"attemptBoth"});
+      if(code){
+        processQR(code.data);
+      } else {
+        // ถ้าอ่านไม่ได้ ลอง resize ใหญ่ขึ้นอีกหน่อย
+        const MAX2 = 1200;
+        let w2 = img.width, h2 = img.height;
+        if(w2 > MAX2 || h2 > MAX2) {
+          if(w2>h2){ h2=Math.round(h2*MAX2/w2); w2=MAX2; }
+          else     { w2=Math.round(w2*MAX2/h2); h2=MAX2; }
+        }
+        canvas.width=w2; canvas.height=h2;
+        ctx.drawImage(img,0,0,w2,h2);
+        const code2 = jsQR(ctx.getImageData(0,0,w2,h2).data, w2, h2,
+                           {inversionAttempts:"attemptBoth"});
+        if(code2){ processQR(code2.data); }
+        else {
+          res.innerHTML = box("warning","⚠️","อ่าน QR ไม่ได้",
+            "กรุณาถ่ายรูปให้ชัดขึ้น เข้าใกล้ QR มากขึ้น และให้แสงสว่างเพียงพอ")
+            + rescanBtn();
+        }
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value = "";
+}
+
+// ── Verify Signature ───────────────────
+async function getPublicKey() {
+  const bin = Uint8Array.from(atob(PUBLIC_KEY_B64), c=>c.charCodeAt(0));
+  return crypto.subtle.importKey("spki", bin.buffer,
+    {name:"ECDSA", namedCurve:"P-256"}, false, ["verify"]);
+}
+function b64u(s) {
+  const b = s.replace(/-/g,"+").replace(/_/g,"/");
+  return Uint8Array.from(atob(b+"=".repeat((4-b.length%4)%4)), c=>c.charCodeAt(0));
+}
+
+async function processQR(raw) {
+  const res = document.getElementById("result");
+  res.style.display = "block";
+  res.innerHTML = '<div class="loading">กำลังตรวจสอบ...</div>';
+  res.scrollIntoView({behavior:"smooth", block:"start"});
+
+  // 1. parse QR
+  let qrData;
+  try { qrData = JSON.parse(raw); }
+  catch {
+    res.innerHTML = box("invalid","❌","อ่าน QR ไม่ได้","ข้อมูลใน QR ไม่ถูกต้อง") + rescanBtn();
+    return;
+  }
+
+  if (!qrData.ID || !qrData.SIG) {
+    res.innerHTML = box("invalid","❌","QR ไม่สมบูรณ์","ไม่พบ ID หรือ Signature") + rescanBtn();
+    return;
+  }
+
+  // 2. ค้นหาจาก STUDENTS ที่ฝังไว้
+  const student = STUDENTS[String(qrData.ID).trim()];
+  if (!student) {
+    res.innerHTML = box("invalid","❌","ไม่พบ ID ในระบบ",
+      `ID: ${esc(qrData.ID)}`) + rescanBtn();
+    return;
+  }
+
+  // 3. verify signature
+  const today   = new Date().toISOString().split("T")[0];
+  const expired = student.V < today;
+  let sigValid  = false;
+
+    try {
+      const pub = await getPublicKey();
+      const pd  = {ID:student.ID, N:student.N, S:student.S,
+                   G:student.G,  A:student.A, D:student.D, V:student.V};
+      const str = Object.keys(pd).sort().map(k=>`${k}:${pd[k]}`).join("|");
+      sigValid  = await crypto.subtle.verify(
+        {name:"ECDSA", hash:"SHA-256"},
+        pub, b64u(qrData.SIG), new TextEncoder().encode(str));
+    } catch { sigValid = false; }
+  }
+
+  // 4. แสดงผล
+  let statusHtml = "";
+  if (!sigValid)
+    statusHtml = box("invalid","❌","ลายเซ็นไม่ถูกต้อง","เอกสารนี้อาจถูกปลอมแปลง ห้ามรับเอกสารฉบับนี้");
+  else if (expired)
+    statusHtml = box("warning","⚠️","เอกสารหมดอายุ",`ลายเซ็นถูกต้อง แต่หมดอายุเมื่อ ${student.V}`);
+  else
+    statusHtml = box("valid","✅","เอกสารถูกต้อง ยืนยันแล้ว","ลายเซ็นดิจิทัลถูกต้อง ยังไม่หมดอายุ");
+
+  res.innerHTML = statusHtml + `
+  <div class="info-grid">
+    <div class="info-item full">
+      <div class="i-label">ชื่อ - นามสกุล</div>
+      <div class="i-value">${esc(student.N)}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">Examination ID</div>
+      <div class="i-value">${esc(student.ID)}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">วันที่สอบ</div>
+      <div class="i-value">${esc(student.D)}</div>
+    </div>
+    <div class="info-item full">
+      <div class="i-label">โรงเรียน</div>
+      <div class="i-value">${esc(student.S||"-")}</div>
+    </div>
+  </div>
+  <div class="score-row">
+    <div class="score-box">
+      <div class="s-label">General Aptitude</div>
+      <div class="s-val">${esc(student.G)}</div>
+    </div>
+    <div class="score-box">
+      <div class="s-label">Academic Aptitude</div>
+      <div class="s-val">${esc(student.A)}</div>
+    </div>
+  </div>` + rescanBtn();
+}
+
+
+function box(cls,icon,title,desc){
+  return `<div class="r-box ${cls}">
+    <div class="r-icon">${icon}</div>
+    <div class="r-title">${title}</div>
+    <div class="r-desc">${desc}</div>
+  </div>`;
+}
+function rescanBtn(){
+  return `<button class="btn-rescan" onclick="rescan()">📷 สแกนใหม่</button>`;
+}
+function rescan(){
+  document.getElementById("result").style.display="none";
+  document.getElementById("result").innerHTML="";
+  startCamera();
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+</script>
+</body>
+</html>
