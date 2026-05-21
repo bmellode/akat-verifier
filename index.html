@@ -10312,45 +10312,28 @@ function handleFile(input) {
   if(!input.files || !input.files[0]) return;
   const res = document.getElementById("result");
   res.style.display = "block";
-  res.innerHTML = '<div class="loading">กำลังประมวลผล...</div>';
+  res.innerHTML = '<div class="loading">กำลังอ่าน QR...</div>';
 
   const reader = new FileReader();
   reader.onload = e => {
     const img = new Image();
     img.onload = () => {
-      // resize ให้ด้านยาวไม่เกิน 800px — เร็วขึ้น 10-50x
-      const MAX = 800;
-      let w = img.width, h = img.height;
-      if(w > MAX || h > MAX) {
-        if(w > h) { h = Math.round(h * MAX/w); w = MAX; }
-        else      { w = Math.round(w * MAX/h); h = MAX; }
+      // ลอง 3 ขนาด จากเล็กไปใหญ่
+      const sizes = [600, 1000, 1600];
+      let found = false;
+      for (const MAX of sizes) {
+        let w = img.width, h = img.height;
+        if(w > h){ h = Math.round(h*MAX/w); w = MAX; }
+        else     { w = Math.round(w*MAX/h); h = MAX; }
+        canvas.width = w; canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+        const code = jsQR(ctx.getImageData(0,0,w,h).data, w, h,
+                          {inversionAttempts:"attemptBoth"});
+        if(code){ processQR(code.data); found = true; break; }
       }
-      canvas.width = w; canvas.height = h;
-      ctx.drawImage(img, 0, 0, w, h);
-
-      // อ่าน QR จากรูปที่ resize แล้ว
-      const code = jsQR(ctx.getImageData(0,0,w,h).data, w, h,
-                        {inversionAttempts:"attemptBoth"});
-      if(code){
-        processQR(code.data);
-      } else {
-        // ถ้าอ่านไม่ได้ ลอง resize ใหญ่ขึ้นอีกหน่อย
-        const MAX2 = 1200;
-        let w2 = img.width, h2 = img.height;
-        if(w2 > MAX2 || h2 > MAX2) {
-          if(w2>h2){ h2=Math.round(h2*MAX2/w2); w2=MAX2; }
-          else     { w2=Math.round(w2*MAX2/h2); h2=MAX2; }
-        }
-        canvas.width=w2; canvas.height=h2;
-        ctx.drawImage(img,0,0,w2,h2);
-        const code2 = jsQR(ctx.getImageData(0,0,w2,h2).data, w2, h2,
-                           {inversionAttempts:"attemptBoth"});
-        if(code2){ processQR(code2.data); }
-        else {
-          res.innerHTML = box("warning","⚠️","อ่าน QR ไม่ได้",
-            "กรุณาถ่ายรูปให้ชัดขึ้น เข้าใกล้ QR มากขึ้น และให้แสงสว่างเพียงพอ")
-            + rescanBtn();
-        }
+      if(!found){
+        res.innerHTML = box("warning","⚠️","อ่าน QR ไม่ได้",
+          "กรุณาถ่ายเฉพาะ QR ให้เต็มกรอบ และแสงสว่างเพียงพอ") + rescanBtn();
       }
     };
     img.src = e.target.result;
