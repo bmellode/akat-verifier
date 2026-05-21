@@ -10285,77 +10285,87 @@ function b64u(s) {
 async function processQR(raw) {
   const res = document.getElementById("result");
   res.style.display = "block";
-  res.scrollIntoView({ behavior:"smooth", block:"start" });
+  res.innerHTML = '<div style="text-align:center;color:#8A9BB0;padding:20px">กำลังตรวจสอบ...</div>';
+  res.scrollIntoView({behavior:"smooth", block:"start"});
 
-  let data;
-  try { data = JSON.parse(raw); }
-  catch { res.innerHTML = box("invalid","❌","อ่าน QR ไม่ได้","ข้อมูลใน QR ไม่ถูกต้อง") + rescanBtn(); return; }
-
-  const req = ["ID","N","G","A","D","V","FULL_SIG"];
-  const miss = req.filter(k => !data[k]);
-  if (miss.length) {
-    res.innerHTML = box("invalid","❌","QR ไม่สมบูรณ์",`ขาดข้อมูล: ${miss.join(", ")}`) + rescanBtn();
+  // 1. parse QR
+  let qrData;
+  try { qrData = JSON.parse(raw); }
+  catch {
+    res.innerHTML = box("invalid","❌","อ่าน QR ไม่ได้","ข้อมูลใน QR ไม่ถูกต้อง") + rescanBtn();
     return;
   }
 
-  const today = new Date().toISOString().split("T")[0];
-  const expired = data.V < today;
-  let sigValid = null;
+  if (!qrData.ID || !qrData.SIG) {
+    res.innerHTML = box("invalid","❌","QR ไม่สมบูรณ์","ไม่พบ ID หรือ Signature") + rescanBtn();
+    return;
+  }
+
+  // 2. ค้นหาจาก STUDENTS
+  const student = STUDENTS[String(qrData.ID).trim()];
+  if (!student) {
+    res.innerHTML = box("invalid","❌","ไม่พบ ID ในระบบ",
+      `ID: ${esc(qrData.ID)}`) + rescanBtn();
+    return;
+  }
+
+  // 3. verify signature
+  const today   = new Date().toISOString().split("T")[0];
+  const expired = student.V < today;
+  let sigValid  = false;
 
   if (PUBLIC_KEY_B64 !== "PASTE_PUBLIC_KEY_BASE64_HERE") {
     try {
       const pub = await getPublicKey();
-      const pd  = {ID:data.ID,N:data.N,S:data.S||"",G:data.G,A:data.A,D:data.D,V:data.V};
+      const pd  = {ID:student.ID, N:student.N, S:student.S,
+                   G:student.G,  A:student.A, D:student.D, V:student.V};
       const str = Object.keys(pd).sort().map(k=>`${k}:${pd[k]}`).join("|");
       sigValid  = await crypto.subtle.verify(
-        {name:"ECDSA",hash:"SHA-256"}, pub,
-        b64u(data.FULL_SIG), new TextEncoder().encode(str));
+        {name:"ECDSA", hash:"SHA-256"},
+        pub, b64u(qrData.SIG), new TextEncoder().encode(str));
     } catch { sigValid = false; }
   }
 
+  // 4. แสดงผล
   let statusHtml = "";
-  if (sigValid === null) {
-    statusHtml = box("warning","⚠️","ยังไม่ได้ตั้งค่า Public Key","แสดงข้อมูลเท่านั้น ยังไม่สามารถยืนยัน Signature");
-  } else if (!sigValid) {
+  if (!sigValid)
     statusHtml = box("invalid","❌","ลายเซ็นไม่ถูกต้อง","เอกสารนี้อาจถูกปลอมแปลง ห้ามรับเอกสารฉบับนี้");
-  } else if (expired) {
-    statusHtml = box("warning","⚠️","เอกสารหมดอายุ",`ลายเซ็นถูกต้อง แต่หมดอายุเมื่อ ${data.V}`);
-  } else {
-    statusHtml = box("valid","✅","เอกสารถูกต้อง ยืนยันแล้ว","ลายเซ็นดิจิทัลถูกต้อง และยังไม่หมดอายุ");
-  }
+  else if (expired)
+    statusHtml = box("warning","⚠️","เอกสารหมดอายุ",`ลายเซ็นถูกต้อง แต่หมดอายุเมื่อ ${student.V}`);
+  else
+    statusHtml = box("valid","✅","เอกสารถูกต้อง ยืนยันแล้ว","ลายเซ็นดิจิทัลถูกต้อง ยังไม่หมดอายุ");
 
-  const infoHtml = `
-    <div class="info-grid">
-      <div class="info-item full">
-        <div class="i-label">ชื่อ - นามสกุล</div>
-        <div class="i-value">${esc(data.N)}</div>
-      </div>
-      <div class="info-item">
-        <div class="i-label">Examination ID</div>
-        <div class="i-value">${esc(data.ID)}</div>
-      </div>
-      <div class="info-item">
-        <div class="i-label">วันที่สอบ</div>
-        <div class="i-value">${esc(data.D)}</div>
-      </div>
-      <div class="info-item full">
-        <div class="i-label">โรงเรียน</div>
-        <div class="i-value">${esc(data.S||"-")}</div>
-      </div>
+  res.innerHTML = statusHtml + `
+  <div class="info-grid">
+    <div class="info-item full">
+      <div class="i-label">ชื่อ - นามสกุล</div>
+      <div class="i-value">${esc(student.N)}</div>
     </div>
-    <div class="score-row">
-      <div class="score-box">
-        <div class="s-label">General Aptitude</div>
-        <div class="s-val">${esc(data.G)}</div>
-      </div>
-      <div class="score-box">
-        <div class="s-label">Academic Aptitude</div>
-        <div class="s-val">${esc(data.A)}</div>
-      </div>
-    </div>`;
-
-  res.innerHTML = statusHtml + infoHtml + rescanBtn();
+    <div class="info-item">
+      <div class="i-label">Examination ID</div>
+      <div class="i-value">${esc(student.ID)}</div>
+    </div>
+    <div class="info-item">
+      <div class="i-label">วันที่สอบ</div>
+      <div class="i-value">${esc(student.D)}</div>
+    </div>
+    <div class="info-item full">
+      <div class="i-label">โรงเรียน</div>
+      <div class="i-value">${esc(student.S||"-")}</div>
+    </div>
+  </div>
+  <div class="score-row">
+    <div class="score-box">
+      <div class="s-label">General Aptitude</div>
+      <div class="s-val">${esc(student.G)}</div>
+    </div>
+    <div class="score-box">
+      <div class="s-label">Academic Aptitude</div>
+      <div class="s-val">${esc(student.A)}</div>
+    </div>
+  </div>` + rescanBtn();
 }
+
 
 function box(cls, icon, title, desc) {
   return `<div class="r-box ${cls}">
